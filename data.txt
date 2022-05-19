@@ -1,0 +1,1 @@
+Achieved: Impressions 1000 per fetch with a CTR of 1200% using 1/4th of given budget $120

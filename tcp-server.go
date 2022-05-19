@@ -110,7 +110,7 @@ func writeToConn(conn net.Conn, written string, response chan<- bool) (int, erro
 
 	// writing to the conn
 	if _, err:= conn.Write([]byte(written)); err!=nil{
-		
+
 		response<-false
 		return 0, err
 	}

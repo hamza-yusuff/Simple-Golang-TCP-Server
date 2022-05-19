@@ -8,6 +8,7 @@ import (
 	"os"
 	"io"
 	"strings"
+	"errors"
 )
 
 const (
@@ -85,14 +86,14 @@ func readFromConn(conn net.Conn) (string, error){
 	return fmt.Sprintf("Achieved: Impressions %s per fetch with a CTR of %s%% using 1/4th of given budget $%s", result["Impressions"], result["CTR"], result["Budget"]), nil
 }
 // returns number of bytes written to the file
-func writeToConn(conn net.Conn, written string) (int, error){
+func writeToConn(conn net.Conn, written string, response chan<- bool) (int, error){
 
 	// writes to the file
 
 
 	f, err := os.Create("data.txt")
 	if err != nil{
-
+		response<-false
 		return 0, err
 	}
 	defer f.Close()
@@ -100,6 +101,7 @@ func writeToConn(conn net.Conn, written string) (int, error){
 	writer := bufio.NewWriter(f)
 	num, err := writer.WriteString(written)
 	if err!=nil{
+		response<-false
 		return 0, err
 	}
 	fmt.Printf("Wrote %d bytes\n", num)
@@ -108,14 +110,23 @@ func writeToConn(conn net.Conn, written string) (int, error){
 
 	// writing to the conn
 	if _, err:= conn.Write([]byte(written)); err!=nil{
+		
+		response<-false
 		return 0, err
 	}
+
+	response<-true
 	return num, nil
 
 }
 
 func handleConnection(conn net.Conn){
 	// reading from the tcp connection
+
+	// added channel to ensure synchronization of internal operations of the concurrent go-routines which
+	// are being spawned
+	responseWritten := make(chan bool)
+
 	buff, err := readFromConn(conn)
 
 	if err != nil{
@@ -125,10 +136,19 @@ func handleConnection(conn net.Conn){
 	if buff == EXIT{
 		return
 	}
+	// adding newline delim
 
-	if _, err := writeToConn(conn, buff); err!=nil{
+	buff = buff+"\n"
+	if _, err := writeToConn(conn, buff, responseWritten); err!=nil{
 		panic(err)
 	}
 
-	conn.Close()
+	completed := <- responseWritten
+
+	if completed{
+		conn.Close()
+	} else{
+		errors.New("Synchronization Issues")
+	}
+
 }
